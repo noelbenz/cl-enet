@@ -1,4 +1,6 @@
-## cl-enet-autowrap
-Common lisp wrapper around Enet using autowrap
+# cl-enet
 
-This is a work in progress. Please wait patiently.
+Common lisp wrapper around [Enet](http://enet.bespin.org/) using [cl-autowrap](https://github.com/rpav/cl-autowrap)
+
+This is a work in progress.
+
