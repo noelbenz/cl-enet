@@ -7,7 +7,7 @@
   :maintainer "Noel Benzinger <noelbenzinger@gmail.com>"
   :description "Common lisp wrapper around Enet using autowrap"
   :serial t
-  :depends-on (:cl-autowrap)
+  :depends-on (:alexandria :cl-autowrap :trivial-garbage)
   :components
   ((:module
     autowrap-spec
@@ -16,4 +16,5 @@
     ((:static-file "enet.h")))
    (:file "package")
    (:file "library")
-   (:file "autowrap")))
+   (:file "autowrap")
+   (:file "enet")))
