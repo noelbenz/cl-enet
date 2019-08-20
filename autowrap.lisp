@@ -9,5 +9,7 @@
  :include-sources ("_types.h"
                    "_size_t.h"
                    "_fd_def.h")
- :exclude-definitions ("__darwin_va_list"))
+ :exclude-definitions ("__darwin_va_list")
+ :no-accessors t
+ :no-functions t)
 
