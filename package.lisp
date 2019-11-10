@@ -6,3 +6,6 @@
 (defpackage #:enet-ffi
   (:use #:common-lisp))
 
+(defpackage #:enet-examples
+  (:use #:common-lisp))
+

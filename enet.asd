@@ -11,7 +11,10 @@
   (:alexandria
    :cl-autowrap
    :cl-plus-c
-   :trivial-garbage)
+   :trivial-garbage
+   :cl-ppcre
+   :bordeaux-threads
+   :chanl)
   :components
   ((:module
     autowrap-spec
@@ -21,4 +24,5 @@
    (:file "package")
    (:file "library")
    (:file "autowrap")
-   (:file "enet")))
+   (:file "enet")
+   (:file "example")))
