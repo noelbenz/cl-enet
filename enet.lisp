@@ -269,18 +269,28 @@ While an event is a lisp object, it may contain a packet which we do need to fre
                        (if reliable enet-ffi:+enet-packet-flag-reliable+ 0)
                        (if unsequenced enet-ffi:+enet-packet-flag-unsequenced+ 0)
                        (if unreliable-fragment enet-ffi:+enet-packet-flag-unreliable-fragment+ 0))))
-    (c-let ((c-bytes :char :count (length bytes)))
-      ;; Handle vectors too by using `across' instead of `in'. Check if the type if a vector using `etypecase'.
-      ;; https://stackoverflow.com/questions/52375401/looping-over-arrays-or-lists-indifferently
-      (loop for b in bytes for i from 0 do (setf (c-bytes i) (elt bytes i)))
+    (c-let ((c-bytes :unsigned-char :count (length bytes)))
+      (etypecase bytes
+        (vector (loop for b across bytes for i from 0 do (setf (c-bytes i) (elt bytes i))))
+        (list (loop for b in bytes for i from 0 do (setf (c-bytes i) (elt bytes i)))))
       (c-fun enet-ffi:enet-packet-create (c-bytes &) (length bytes) flags))))
 (export 'create-packet)
-
-;; TODO: Access packet data http://enet.bespin.org/structENetPacket.html#ad602d6b6b35ef88b2b2e080fa5c9dc3d
 
 (defun destroy-packet (packet)
   (c-fun enet-ffi:enet-packet-destroy packet))
 (export 'destroy-packet)
+
+(defun packet-data (packet)
+  (multiple-value-bind (str data-ptr-ptr)
+      (autowrap:inhibit-string-conversion (c-ref packet enet-ffi:e-net-packet :data))
+    (declare (ignore str))
+    (let* ((data-ptr (cffi:mem-ref data-ptr-ptr :pointer))
+           (data-length (c-ref packet enet-ffi:e-net-packet :data-length))
+           (data (make-array data-length :element-type '(unsigned-byte 8))))
+      (loop for i from 0 below data-length do
+           (setf (elt data i) (cffi:mem-ref data-ptr :unsigned-char i)))
+      data)))
+(export 'packet-data)
 
 (defun send-packet (peer packet &optional (channel-id 0))
   (c-fun enet-ffi:enet-peer-send peer channel-id packet))
