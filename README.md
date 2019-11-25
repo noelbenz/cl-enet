@@ -9,6 +9,7 @@ random value between 0 and 4 to the number. To test the example run
 the following:
 
 ```
+(enet:initialize)
 (enet-examples:start-server)
 (enet-examples:start-client)
 ```
