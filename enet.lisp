@@ -185,6 +185,7 @@
 (export 'event)
 (export 'channel-id)
 (export 'data)
+(export 'packet)
 (export 'peer)
 (export 'event-type)
 
@@ -242,6 +243,7 @@ While an event is a lisp object, it may contain a packet which we do need to fre
                     (:channel-id `(channel-id ,event-sym))
                     (:data `(data ,event-sym))
                     (:peer `(peer ,event-sym))
+                    (:packet `(packet ,event-sym))
                     (:event-type `(event-type ,event-sym))))))
 
 (defmacro handle-event (event &body handlers)
@@ -268,23 +270,17 @@ While an event is a lisp object, it may contain a packet which we do need to fre
                        (if unsequenced enet-ffi:+enet-packet-flag-unsequenced+ 0)
                        (if unreliable-fragment enet-ffi:+enet-packet-flag-unreliable-fragment+ 0))))
     (c-let ((c-bytes :char :count (length bytes)))
+      ;; Handle vectors too by using `across' instead of `in'. Check if the type if a vector using `etypecase'.
+      ;; https://stackoverflow.com/questions/52375401/looping-over-arrays-or-lists-indifferently
       (loop for b in bytes for i from 0 do (setf (c-bytes i) (elt bytes i)))
-      (c-fun enet-ffi:enet-packet-create c-bytes (length bytes) flags))))
+      (c-fun enet-ffi:enet-packet-create (c-bytes &) (length bytes) flags))))
 (export 'create-packet)
+
+;; TODO: Access packet data http://enet.bespin.org/structENetPacket.html#ad602d6b6b35ef88b2b2e080fa5c9dc3d
 
 (defun destroy-packet (packet)
   (c-fun enet-ffi:enet-packet-destroy packet))
 (export 'destroy-packet)
-
-(defmacro with-packet ((packet bytes &key reliable unsequenced unreliable-fragment) &body body)
-  `(let ((,packet (create-packet ,bytes
-                                 :reliable ,reliable
-                                 :unsequenced ,unsequenced
-                                 :unreliable-fragment ,unreliable-fragment)))
-     (unwind-protect
-          (progn ,@body)
-       (destroy-packet packet))))
-(export 'with-packet)
 
 (defun send-packet (peer packet &optional (channel-id 0))
   (c-fun enet-ffi:enet-peer-send peer channel-id packet))

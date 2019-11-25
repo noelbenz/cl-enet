@@ -3,7 +3,8 @@
 (defvar *side* "None")
 (defun log-info (fmtstr &rest args)
   (format t "~A: ~A~%" *side* (apply #'format (cons nil (cons fmtstr args))))
-  (force-output *standard-output*))
+  ;; (force-output *standard-output*)
+  )
 
 (defparameter +port+ 19654)
 (defvar *server-thread* nil)
@@ -16,7 +17,11 @@
     (enet:handle-event event
       (:connect (:peer peer)
                 (log-info "Peer connected.~%")
-                (push peer *peers*))))
+                (push peer *peers*))
+      (:disconnect ()
+                   (log-info "Disconnected."))
+      (:receive (:packet packet)
+                (log-info "Received"))))
   (setf *stop-server* (first (list (chanl:recv *server-channel* :blockp nil))))
   (when *stop-server*
     (log-info "Received stop signal.~%")))
@@ -32,7 +37,8 @@
                  (enet:with-server (server :port +port+)
                    (let ((*stop-server* nil))
                      (loop while (not *stop-server*) do (server-tick server))
-                     (setf *peers* ()))))))))))
+                     (setf *peers* ())))
+                 (log-info "Server shutting down."))))))))
 (export 'start-server)
 
 (defun stop-server ()
@@ -45,11 +51,17 @@
 (defvar *client-thread* nil)
 (defvar *stop-client* nil)
 
-(defun client-tick (client)
+(defun client-tick (client peer)
   (enet:with-host-service (event client 1000)
-                          (enet:handle-event event
-                            (:connect (:event event)
-                                      (log-info "Successfully connected. Event: ~A~%" event))))
+    (enet:handle-event event
+      (:connect ()
+                (log-info "Successfully connected." event))
+      (:disconnect ()
+                   (log-info "Disconnected."))
+      (:receive (:packet packet)
+                (log-info "Received"))))
+  (let ((packet (enet:create-packet '(1 2))))
+    (enet:send-packet peer packet))
   (setf *stop-client* (first (list (chanl:recv *client-channel* :blockp nil))))
   (when *stop-client*
     (log-info "Received stop signal.~%")))
@@ -63,10 +75,15 @@
                (let ((*side* "Client"))
                  (setf *standard-output* o)
                  (enet:with-client (client)
-                   (log-info "Attempting to connect.~%")
+                   (log-info "Attempting to connect.")
                    (enet:with-connect (peer client :host "127.0.0.1" :port +port+)
                      (let ((*stop-client* nil))
-                       (loop while (not *stop-client*) do (client-tick client))))))))))))
+                       (restart-case
+                           (loop while (not *stop-client*) do
+                             (restart-case (client-tick client peer)
+                               (return-to-loop () nil)))
+                         (stop-client () (setf *stop-client* t))))))
+                 (log-info "Client shutting down."))))))))
 (export 'start-client)
 
 (defun stop-client ()
