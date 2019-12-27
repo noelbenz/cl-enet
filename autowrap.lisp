@@ -5,7 +5,8 @@
 (autowrap:c-include
  '(enet autowrap-spec "enet.h")
  :spec-path '(enet autowrap-spec)
- :exclude-sources ("/usr/include/")
+ :exclude-sources ("/usr/include/"
+                   "C:\\\\Program Files")
  :include-sources ("_types.h"
                    "_size_t.h"
                    "_fd_def.h")
