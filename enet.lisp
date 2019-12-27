@@ -1,12 +1,13 @@
 (in-package #:enet)
 
-(define-condition enet-error (error) ((function-name :initarg :function-name :reader function-name)
+(define-condition enet-error (error)
+  ((function-name :initarg :function-name :reader function-name)
    (error-code :initarg :error-code :reader error-code)))
 (export 'enet-error)
 (export 'function-name)
 (export 'error-code)
 
-(defmacro %handle-error-c-fun (fn &rest args)
+(defmacro handle-error-c-fun (fn &rest args)
   (with-gensyms (error-code)
     `(let ((,error-code (c-fun ,fn ,@args)))
        (when (/= ,error-code 0)
@@ -15,16 +16,22 @@
                 :error-code ,error-code)))))
 
 (defun initialize ()
-  (%handle-error-c-fun enet-ffi:enet-initialize))
+  (handle-error-c-fun enet-ffi:enet-initialize))
 (export 'initialize)
 
 (defun deinitialize ()
   (c-fun enet-ffi:enet-deinitialize))
 (export 'deinitialize)
 
+(defmacro with-init (&body body)
+  `(unwind-protect
+        (progn (initialize) ,@body)
+     (deinitialize)))
+(export 'with-init)
+
 (defparameter +ip-matcher+ (ppcre:create-scanner "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"))
 
-(defun %fill-address (address host port)
+(defun fill-address (address host port)
   (c-val ((address enet-ffi:e-net-address))
     (setf (address :port) port)
     (cond
@@ -37,14 +44,14 @@
                                 (nth 3 host))))
       ((stringp host)
        (if (ppcre:scan +ip-matcher+ host)
-           (%handle-error-c-fun enet-ffi:enet-address-set-host-ip address host)
-           (%handle-error-c-fun enet-ffi:enet-address-set-host address host)))
+           (handle-error-c-fun enet-ffi:enet-address-set-host-ip address host)
+           (handle-error-c-fun enet-ffi:enet-address-set-host address host)))
       (t (error 'type-error :datum host)))
     address))
 
-(defmacro %with-address ((address host port) &body body)
+(defmacro with-address ((address host port) &body body)
   `(c-with ((,address enet-ffi:e-net-address))
-     (%fill-address ,address ,host ,port)
+     (fill-address ,address ,host ,port)
      ,@body))
 
 (defun create-host (address &key
@@ -73,7 +80,7 @@
                            (channel-limit 1)
                            (incoming-bandwidth 0)
                            (outgoing-bandwidth 0))
-  (%with-address (address host port)
+  (with-address (address host port)
     (create-host address
                  :peer-count peer-count
                  :channel-limit channel-limit
@@ -142,7 +149,7 @@
                             (port 1234)
                             (channel-count 1)
                             (data 0))
-  (%with-address (address host port)
+  (with-address (address host port)
     (let* ((peer (c-fun enet-ffi:enet-host-connect client address channel-count data)))
       (if (cffi:null-pointer-p (ptr peer))
           (error 'enet-error :function-name 'enet-ffi:enet-host-connect)
@@ -231,11 +238,11 @@ While an event is a lisp object, it may contain a packet which we do need to fre
          (destroy-event ,event)))))
 (export 'with-host-service)
 
-(defun %find-handler (handlers type)
+(defun find-handler (handlers type)
   (or (find-if (lambda (handler) (eq (first handler) type)) handlers)
       (list type () ())))
 
-(defun %generate-args (event-sym args)
+(defun generate-args (event-sym args)
   (loop for (member name) on args by #'cddr
      collect
        (list name (ecase member
@@ -247,19 +254,19 @@ While an event is a lisp object, it may contain a packet which we do need to fre
                     (:event-type `(event-type ,event-sym))))))
 
 (defmacro handle-event (event &body handlers)
-  (let ((connect-handler (%find-handler handlers :connect))
-        (disconnect-handler (%find-handler handlers :disconnect))
-        (receive-handler (%find-handler handlers :receive)))
+  (let ((connect-handler (find-handler handlers :connect))
+        (disconnect-handler (find-handler handlers :disconnect))
+        (receive-handler (find-handler handlers :receive)))
     `(when (not (null ,event))
        (ecase (event-type ,event)
          (,enet-ffi:+enet-event-type-connect+
-          (let ,(%generate-args event (second connect-handler))
+          (let ,(generate-args event (second connect-handler))
             ,@(cddr connect-handler)))
          (,enet-ffi:+enet-event-type-disconnect+
-          (let ,(%generate-args event (second disconnect-handler))
+          (let ,(generate-args event (second disconnect-handler))
             ,@(cddr disconnect-handler)))
          (,enet-ffi:+enet-event-type-receive+
-          (let ,(%generate-args event (second receive-handler))
+          (let ,(generate-args event (second receive-handler))
             ,@(cddr receive-handler)))
          (,enet-ffi:+enet-event-type-none+ nil)))))
 (export 'handle-event)
